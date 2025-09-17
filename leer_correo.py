@@ -75,8 +75,8 @@ def enviar_whatsapp(asunto, de, categoria):
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
         body = f"Nuevo correo IMPORTANTE\nDe: {de}\nAsunto: {asunto}\nCategoría: {categoria}"
 
-        # Convertir el texto solo a ASCII para evitar errores de codificación en Render
-        body = body.encode('ascii', 'ignore').decode('ascii')
+        # Convertir el texto a UTF-8 para evitar errores de codificación en Render
+        body = body.encode('utf-8', 'ignore').decode('utf-8')
 
         mensaje = client.messages.create(
             from_=TWILIO_FROM,
@@ -159,6 +159,7 @@ def leer_correos():
             except Exception as e:
                 print(f"❌ Error al reenviar: {e}")
 
+            print("🚀 Ejecutando envío de WhatsApp...")
             enviar_whatsapp(asunto, de, categoria)
 
         enviar_respuesta(correo_remitente)
