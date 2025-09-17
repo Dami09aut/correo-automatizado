@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from twilio.rest import Client
 import smtplib
 from email.mime.text import MIMEText
+from email.header import Header
+from email.utils import formataddr
 
 load_dotenv()
 
@@ -44,18 +46,28 @@ def clasificar_correo(asunto, cuerpo):
 
 def enviar_respuesta(destinatario):
     try:
-        server = smtplib.SMTP("smtp.gmail.com", 587)
-        server.starttls()
-        server.login(EMAIL, PASSWORD)
-        msg = MIMEText("Gracias por tu mensaje. Hemos recibido tu correo y te responderemos pronto.")
-        msg["Subject"] = "Re: Respuesta automática"
-        msg["From"] = EMAIL
+        smtp_server = os.getenv("SMTP_SERVER")
+        smtp_port = int(os.getenv("SMTP_PORT"))
+        smtp_user = os.getenv("SMTP_USER")
+        smtp_password = os.getenv("SMTP_PASSWORD")
+
+        msg = MIMEText(
+            "Gracias por tu mensaje. Hemos recibido tu correo y te responderemos pronto.",
+            _charset="utf-8"
+        )
+
+        msg["Subject"] = Header("Re: Respuesta automática", "utf-8")
+        msg["From"] = formataddr((str(Header("Auto Respuesta", "utf-8")), smtp_user))
         msg["To"] = destinatario
-        server.sendmail(EMAIL, destinatario, msg.as_string())
-        server.quit()
+
+        with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
+            server.login(smtp_user, smtp_password)
+            server.sendmail(smtp_user, destinatario, msg.as_string())
+
         print("📤 Respuesta automática enviada.")
+
     except Exception as e:
-        print(f"❌ Error al enviar respuesta automática: {e}")
+        print(f"❌ Error al enviar respuesta automatica: {e}")
 
 def enviar_whatsapp(asunto, de, categoria):
     try:
@@ -63,10 +75,7 @@ def enviar_whatsapp(asunto, de, categoria):
         mensaje = client.messages.create(
             from_=TWILIO_FROM,
             to=TWILIO_TO,
-            body=f"📧 Nuevo correo IMPORTANTE
-De: {de}
-Asunto: {asunto}
-Categoría: {categoria}"
+            body = f"📩 Nuevo correo IMPORTANTE\nDe: {de}\nAsunto: {asunto}\nCategoría: {categoria}"
         )
         print("📲 WhatsApp enviado correctamente.")
     except Exception as e:
@@ -100,7 +109,13 @@ def leer_correos():
         raw_email = data[0][1]
         msg = email.message_from_bytes(raw_email)
 
-        de = msg.get("From")
+        from_raw = msg.get("From")
+        from email.utils import parseaddr
+        nombre_remitente, correo_remitente = parseaddr(from_raw)
+        de = correo_remitente
+        from_decoded, encoding = decode_header(from_raw)[0]
+        if isinstance(from_decoded, bytes):
+            from_decoded = from_decoded.decode(encoding if encoding else "utf-8")
         asunto, encoding = decode_header(msg.get("Subject"))[0]
         if isinstance(asunto, bytes):
             asunto = asunto.decode(encoding if encoding else "utf-8")
@@ -128,12 +143,7 @@ def leer_correos():
                 server = smtplib.SMTP("smtp.gmail.com", 587)
                 server.starttls()
                 server.login(EMAIL, PASSWORD)
-                reenviado = MIMEText(f"Correo importante reenviado automáticamente:
-
-Asunto: {asunto}
-De: {de}
-
-{cuerpo}")
+                reenviado = MIMEText(f"Correo importante reenviado automáticamente:\n\nAsunto: {asunto}\nDe: {de}\n\n{cuerpo}")
                 reenviado["Subject"] = f"[REENVÍO] {asunto}"
                 reenviado["From"] = EMAIL
                 reenviado["To"] = reenviar_a
@@ -145,7 +155,7 @@ De: {de}
 
             enviar_whatsapp(asunto, de, categoria)
 
-        enviar_respuesta(de)
+        enviar_respuesta(correo_remitente)
         guardar_registro(fecha, de, asunto, categoria, True)
 
     mail.logout()
