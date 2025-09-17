@@ -1,9 +1,9 @@
-services:
-  - type: cron
-    name: correo-automatizado
-    schedule: "*/1 * * * *"
-    runtime: python
-    repo: https://github.com/Dami09aut/correo-automatizado.git
-    buildCommand: ""
-    startCommand: "python leer_correo.py"
-    branch: main
+type: cron
+name: correo-automatizado
+runtime: python
+entrypoint: python leer_correo.py
+
+schedule: "*/15 * * * *"
+
+build:
+  requirements: requirements.txt

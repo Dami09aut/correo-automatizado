@@ -10,6 +10,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
 from email.utils import formataddr
+from email.utils import parseaddr
 
 load_dotenv()
 
@@ -47,22 +48,22 @@ def clasificar_correo(asunto, cuerpo):
 def enviar_respuesta(destinatario):
     try:
         smtp_server = os.getenv("SMTP_SERVER")
-        smtp_port = int(os.getenv("SMTP_PORT"))
+        smtp_port = int(os.getenv("SMTP_PORT") or "465")
         smtp_user = os.getenv("SMTP_USER")
         smtp_password = os.getenv("SMTP_PASSWORD")
 
-        msg = MIMEText(
-            "Gracias por tu mensaje. Hemos recibido tu correo y te responderemos pronto.",
-            _charset="utf-8"
-        )
+        msg = MIMEText("Gracias por tu mensaje. Hemos recibido tu correo y te responderemos pronto.".encode("utf-8"), _charset="utf-8")
 
         msg["Subject"] = Header("Re: Respuesta automática", "utf-8")
         msg["From"] = formataddr((str(Header("Auto Respuesta", "utf-8")), smtp_user))
-        msg["To"] = destinatario
+        correo_destino = parseaddr(destinatario)[1]
+        if not correo_destino or "@" not in correo_destino:
+            raise ValueError(f"Dirección inválida: {destinatario}")
+        msg["To"] = correo_destino
 
         with smtplib.SMTP_SSL(smtp_server, smtp_port) as server:
             server.login(smtp_user, smtp_password)
-            server.sendmail(smtp_user, destinatario, msg.as_string())
+            server.sendmail(smtp_user, correo_destino, msg.as_string())
 
         print("📤 Respuesta automática enviada.")
 
@@ -72,10 +73,15 @@ def enviar_respuesta(destinatario):
 def enviar_whatsapp(asunto, de, categoria):
     try:
         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        body = f"Nuevo correo IMPORTANTE\nDe: {de}\nAsunto: {asunto}\nCategoría: {categoria}"
+
+        # Convertir el texto solo a ASCII para evitar errores de codificación en Render
+        body = body.encode('ascii', 'ignore').decode('ascii')
+
         mensaje = client.messages.create(
             from_=TWILIO_FROM,
             to=TWILIO_TO,
-            body = f"📩 Nuevo correo IMPORTANTE\nDe: {de}\nAsunto: {asunto}\nCategoría: {categoria}"
+            body=body
         )
         print("📲 WhatsApp enviado correctamente.")
     except Exception as e:
